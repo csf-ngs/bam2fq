@@ -4,19 +4,40 @@ organization := "at.ac.csf-ngs"
 
 assemblySettings
 
-
 name := "bam2fq"
 
-version := "0.5-SNAPSHOT"
+scalaVersion := "2.10.6"
+
+version := "0.7-SNAPSHOT"
 
 jarName in assembly := "bam2fq.jar"
 
+//mainClass in assembly := Some("at.ac.imp.genau.jnomicss.cli.doApp")
+
+mergeStrategy in assembly <<= (mergeStrategy in assembly) { (old) =>
+  {
+    case "logback.xml"     => MergeStrategy.first
+    case x => old(x)
+  }
+}
+
+excludedJars in assembly <<= (fullClasspath in assembly) map { cp =>
+  val toFilter = Set("specs2","pegdown", "scalacheck","scalatest","junit","mockito")
+  cp.filter{ j =>
+     val name = j.data.getName.toLowerCase
+     toFilter.filter(f => name.contains(f)).size > 0
+  }
+}
+
+
 libraryDependencies ++= Seq(
-    "org.specs2" %% "specs2" % "1.7.1" % "test",
-    "org.specs2" %% "specs2-scalaz-core" % "6.0.1" % "test",
-    "org.mockito" % "mockito-all" % "1.8.5" % "test",
-    "junit" % "junit" % "4.8" % "test",
-    "org.pegdown" % "pegdown" % "1.0.2" % "test"
+    "org.specs2" %% "specs2-core" % "3.6.4" % "test",
+    "org.specs2" %% "specs2-mock" % "3.6.4" % "test",
+    "org.specs2" %% "specs2-html" % "3.6.4" % "test",
+    "org.mockito" % "mockito-all" % "1.9.0" % "test",
+    "junit" % "junit" % "4.11" % "test",
+    "org.pegdown" % "pegdown" % "1.2.0" % "test",
+    "org.scalacheck" %% "scalacheck" % "1.10.1" % "test"
 )
 
 libraryDependencies ++= Seq(
@@ -25,13 +46,11 @@ libraryDependencies ++= Seq(
     "ch.qos.logback" % "logback-classic" % "1.0.0"
 )
 
-libraryDependencies += "com.weiglewilczek.slf4s" %% "slf4s" % "1.0.7"
-
 resolvers += "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/"
 
 testOptions in Test += Tests.Argument("html", "console")
 
 libraryDependencies ++= Seq( 
-     "net.sf.picard" % "sam" % "1.65",
-     "net.sf.picard" % "picard" % "1.65"
+     "com.github.broadinstitute" % "picard" % "2.5.0",
+     "com.github.samtools" % "htsjdk" % "2.5.1"
 )

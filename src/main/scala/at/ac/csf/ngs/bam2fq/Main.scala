@@ -9,7 +9,6 @@ import javax.swing.JButton
 import javax.swing.JTextArea
 import scala.collection.mutable.ArrayBuffer
 import javax.swing.SwingWorker
-import scala.actors.threadpool.ExecutorService
 import java.util.concurrent.Executors
 import javax.swing.JTextPane
 import javax.swing.JMenuBar
@@ -21,23 +20,25 @@ import javax.swing.filechooser.FileFilter
 import javax.swing.JOptionPane
 
 case class ConversionFile(file: File, converted: Boolean){
-  def forDisplay: String = file.getCanonicalPath()+" "+(if(converted) "converted" else "")  
+  def forDisplay(sp: String): String = file.getCanonicalPath()+" "+(if(converted) s"converted $sp" else "")  
 }
 
-class ConverterWorker(bam: File, index: Int, relabel: (Int) => Int ) extends SwingWorker[Unit,Unit](){
-   	override def doInBackground() {
-	      val converter = new Bam(bam, true)
-	      converter.convert()
+class ConverterWorker(bam: File, index: Int, relabel: (Int, String) => Unit, rename: Boolean ) extends SwingWorker[Unit,Unit](){
+   var sp = ""	
+   override def doInBackground() {
+	      val converter = new Bam(bam, true, rename)
+	      sp = converter.convert()
 	      Thread.sleep(1000)
    	}
-	override def done(){
-	   relabel(index)
-	}
+	  override def done(){
+	   relabel(index, sp)
+	  }
 }
 
 
 class Bam2FqConverter extends JFrame("Bam To Fastq") {
-  val button = new JButton("convert")
+  val convertButton = new JButton("convert")
+  val renameButton = new JButton("rename & convert")
   val filesArea = new JTextPane()
   filesArea.setEditable(false)
   var filesList = new ArrayBuffer[ConversionFile]()
@@ -62,7 +63,7 @@ class Bam2FqConverter extends JFrame("Bam To Fastq") {
         	      JOptionPane.ERROR_MESSAGE)
         	}else{
         	   filesList.append(new ConversionFile(file, false))
-        	   filesArea.setText(filesList.map(_.forDisplay).mkString("\n"))
+        	   filesArea.setText(filesList.map(_.forDisplay("")).mkString("\n"))
         	}
         }
     }
@@ -80,7 +81,10 @@ class Bam2FqConverter extends JFrame("Bam To Fastq") {
 
   
   getContentPane().add( new javax.swing.JScrollPane( filesArea ), java.awt.BorderLayout.CENTER )
-  getContentPane().add(button, java.awt.BorderLayout.SOUTH)
+  val p = new javax.swing.JPanel()
+  p.add(convertButton)
+  p.add(renameButton)
+  getContentPane().add(p, java.awt.BorderLayout.SOUTH)
   val drop = new FileDrop( null, filesArea, /*dragBorder,*/ 
         new FileDrop.Listener(){
            override def filesDropped(files: Array[File]){
@@ -90,29 +94,37 @@ class Bam2FqConverter extends JFrame("Bam To Fastq") {
                 	  filesList.append(new ConversionFile(f, false))
                   }
                 }
-                filesArea.setText(filesList.map(_.forDisplay).mkString("\n"))
+                filesArea.setText(filesList.map(_.forDisplay("")).mkString("\n"))
            }
   })
-  button.addActionListener(new ActionListener(){
-
-       override def actionPerformed(e: ActionEvent){
-	       val array = filesList.toArray
-	       def relabel(index: Int): Int = {
+  
+  def convert(rename: Boolean){
+      val array = filesList.toArray
+	    def relabel(index: Int, sp: String){
 		       array(index) = array(index).copy(converted = true)
-		       filesArea.setText(array.map(_.forDisplay).mkString("\n"))
-		       index
-		   } 
-	       val executor = Executors.newSingleThreadExecutor()
-	       for((bam,index) <- filesList.zipWithIndex){
-	          if(!bam.converted){
-		          val worker = new ConverterWorker(bam.file, index, relabel)
-		          executor.execute(worker)
-	          }
-	       }     
+		       filesArea.setText(array.map(_.forDisplay(sp)).mkString("\n"))
+		  } 
+	    val executor = Executors.newSingleThreadExecutor()
+	    for((bam,index) <- filesList.zipWithIndex){
+	       if(!bam.converted){
+		         val worker = new ConverterWorker(bam.file, index, relabel, rename)
+		         executor.execute(worker)
+	       }
+	    }     
+  }
+  
+  convertButton.addActionListener(new ActionListener(){
+      override def actionPerformed(e: ActionEvent){
+         convert(false)
 	    }}
   )
  
-       
+  renameButton.addActionListener(new ActionListener(){
+      override def actionPerformed(e: ActionEvent){
+         convert(true)
+	    }}
+  )
+     
 
   
 }
