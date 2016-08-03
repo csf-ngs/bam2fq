@@ -8,12 +8,14 @@ import htsjdk.samtools.fastq.FastqRecord
 import htsjdk.samtools.fastq.FastqWriter
 import htsjdk.samtools.SAMRecord
 import htsjdk.samtools.ValidationStringency._
-
+import org.slf4j.{Logger,LoggerFactory}
 
 
 
 class Bam(inFile: File, compress: Boolean, rename: Boolean) {
+  private val log = LoggerFactory.getLogger(getClass)
   
+  log.info(s"${inFile.getAbsolutePath} $compress $rename")
  
   def paired(): Boolean = {
      val input = new SAMFileReader(inFile)
@@ -27,22 +29,22 @@ class Bam(inFile: File, compress: Boolean, rename: Boolean) {
  
   
   def convert(): String = {
-        System.err.println("checking")
+        log.debug("checking")
         val sp = if(paired){
-            System.err.println("paired")
+            log.debug("paired")
             convertPair
             "pair"
         } else {
-           System.err.println("single")
+           log.debug("single")
            convertSingle
-     	   "single" 
+     	     "single" 
         }
-        System.err.println(s"done conversion $sp")
+        log.info(s"done conversion $sp")
         sp
    }
 
   def convertPair(){
-    System.err.println("converting paired end")
+    log.info("converting paired end")
     try{
        val factory = new FastqWriterFactory()
        val writer1 = factory.newWriter(new File(outName(1)))
@@ -70,7 +72,8 @@ class Bam(inFile: File, compress: Boolean, rename: Boolean) {
   
   def outName(read: Int): String = {
       if(rename){
-        Fastq.illuminaName(inFile.getAbsolutePath, read, compress)
+        val rn = Fastq.illuminaName(inFile.getAbsolutePath, read, compress)
+        inFile.getParent+"/"+rn
       }else{
         noRename(read)
       }
@@ -115,7 +118,7 @@ object Fastq {
       readName match {
         case ReadPattern(flowcell, lane, null) => (flowcell, lane.toInt, "")
         case ReadPattern(flowcell, lane, sam) => {
-           val sams = sam.replaceAll("_","")
+           val sams = sam.replaceAll("_","").replaceAll("\\+","")
            (flowcell, lane.toInt, sams.substring(1))
         }
         case _ => throw new RuntimeException("could not parse flowcell and lane from read name: "+readName)

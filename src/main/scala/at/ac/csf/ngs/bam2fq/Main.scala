@@ -18,27 +18,36 @@ import java.awt.event.KeyEvent
 import javax.swing.JFileChooser
 import javax.swing.filechooser.FileFilter
 import javax.swing.JOptionPane
+import org.slf4j.{Logger,LoggerFactory}
 
 case class ConversionFile(file: File, converted: Boolean){
   def forDisplay(sp: String): String = file.getCanonicalPath()+" "+(if(converted) s"converted $sp" else "")  
 }
 
 class ConverterWorker(bam: File, index: Int, relabel: (Int, String) => Unit, rename: Boolean ) extends SwingWorker[Unit,Unit](){
+   private val log = LoggerFactory.getLogger(getClass)
    var sp = ""	
    override def doInBackground() {
 	      val converter = new Bam(bam, true, rename)
-	      sp = converter.convert()
+	      try{
+	       sp = converter.convert()
+	      }catch{
+	        case e: Exception => {
+	          log.error(e.getMessage)
+	          relabel(index, "Error: "+e.getMessage)
+	        }
+	      }
 	      Thread.sleep(1000)
    	}
 	  override def done(){
-	   relabel(index, sp)
+	      relabel(index, sp)
 	  }
 }
 
 
 class Bam2FqConverter extends JFrame("Bam To Fastq") {
-  val convertButton = new JButton("convert")
-  val renameButton = new JButton("rename & convert")
+  val convertButton = new JButton("convert to fastq")
+  val renameButton = new JButton("rename to illumina conventions & convert to fastq")
   val filesArea = new JTextPane()
   filesArea.setEditable(false)
   var filesList = new ArrayBuffer[ConversionFile]()
